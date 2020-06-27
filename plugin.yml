@@ -1,0 +1,5 @@
+name: gFacSetSpawn
+main: me.gabriel.gfacsetspawn.Main
+version: 1.0
+author: Gab_Alves
+depend: [MassiveCore, Factions]

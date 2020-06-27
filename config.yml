@@ -1,0 +1,15 @@
+# Configuracoes do mysql abaixo
+MySQL:
+  Host: 'localhost'
+  Porta: 3306
+  Usuario: 'root'
+  Senha: ''
+  Database: 'db'
+  
+Mensagens:
+  sem-fac: '&cVocê não tem facção para executar está ação.'
+  sem-cargo: '&cVocê precisa ser capitão ou superior para utilizar este comando.'
+  action-bar: '&aSpawn setado com sucesso.'
+  ja-acessando-menu: '&cJa existe um player de sua facção acessando o menu do /f setspawn.'
+  precisa-estar-claim: '&cVocê precisa estar no claim de sua facção para utilizar este comando.'
+  
