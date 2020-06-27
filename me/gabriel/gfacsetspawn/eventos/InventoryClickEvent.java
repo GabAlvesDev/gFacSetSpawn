@@ -1,103 +1,86 @@
 package me.gabriel.gfacsetspawn.eventos;
 
 import org.bukkit.plugin.*;
-import org.bukkit.entity.*;
-import org.bukkit.inventory.*;
-import org.bukkit.event.*;
-import org.bukkit.event.inventory.InventoryType;
-
-import com.massivecraft.factions.entity.*;
+import com.massivecraft.factions.*;
+import com.massivecraft.massivecore.ps.*;
 
 import me.gabriel.gfacsetspawn.Main;
 import me.gabriel.gfacsetspawn.manager.Manager_Mobs;
-import me.gabriel.gfacsetspawn.utils.Utils;
+import me.gabriel.gfacsetspawn.utils.EntityUtils;
+import me.gabriel.gfacsetspawn.utils.ItemBuilder;
 
-import org.bukkit.*;
+import org.bukkit.entity.*;
+import com.massivecraft.factions.entity.*;
+import org.bukkit.event.*;
 import java.util.*;
+import org.bukkit.*;
+import org.bukkit.inventory.*;
 
-public class InventoryClickEvent implements Listener
+public class PlayerCommandPreprocessEvent implements Listener
 {
     private Main plugin;
     
-    public InventoryClickEvent(final Main plugin) {
+    public PlayerCommandPreprocessEvent(final Main plugin) {
         plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
         this.setPlugin(plugin);
     }
     
-    @EventHandler(ignoreCancelled = true)
-    void onClickInventory(final org.bukkit.event.inventory.InventoryClickEvent event) {
-        if (event.getWhoClicked().getType() == EntityType.PLAYER && event.getSlotType() == InventoryType.SlotType.CONTAINER) {
-            final Inventory clickedInventory = event.getClickedInventory();
-            final Player player = (Player) event.getWhoClicked();
-            if (clickedInventory != null && clickedInventory.getName().endsWith(" - Setar spawner spawn�f")) {
-                event.setCancelled(true);
-                event.setResult(Event.Result.DENY);
-                final MPlayer value = MPlayer.get((Object)player);
-                if (!value.hasFaction()) {
-                    player.closeInventory();
-                }
-                if (this.getPlugin().getSpawnerControllerManager().getConta(value.getFactionName()) == null) {
-                    player.closeInventory();
-                }
-                switch (event.getSlot()) {
-                    case 10: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.COW);
-                        break;
-                    }
-                    case 11: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.SPIDER);
-                        break;
-                    }
-                    case 12: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.ZOMBIE);
-                        break;
-                    }
-                    case 13: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.SKELETON);
-                        break;
-                    }
-                    case 14: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.BLAZE);
-                        break;
-                    }
-                    case 15: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.PIG_ZOMBIE);
-                        break;
-                    }
-                    case 16: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.IRON_GOLEM);
-                        break;
-                    }
-                    case 19: {
-                        this.setSpawnSpawner(player, value.getFaction(), EntityType.MAGMA_CUBE);
-                        break;
-                    }
-                }
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    void onCommand(final org.bukkit.event.player.PlayerCommandPreprocessEvent event) {
+        final Player player = event.getPlayer();
+        if (event.getMessage().equalsIgnoreCase("/f setspawner") || event.getMessage().equalsIgnoreCase("/f setspawn")) {
+            event.setCancelled(true);
+            final MPlayer value = MPlayer.get(player);
+            if (!value.hasFaction()) {
+                player.sendMessage(this.getPlugin().getConfig().getString("Mensagens.sem-fac").replace("&", "§"));
+                return;
             }
+            if (value.getRole() != Rel.LEADER && value.getRole() != Rel.OFFICER) {
+                player.sendMessage(this.getPlugin().getConfig().getString("Mensagens.sem-cargo").replace("&", "§"));
+                return;
+            }
+            final Faction faction = BoardColl.get().getFactionAt(PS.valueOf(player.getLocation()));
+            if (faction == null || faction != value.getFaction()) {
+                player.sendMessage(this.plugin.getConfig().getString("Mensagens.precisa-estar-claim").replace("&", "§"));
+                return;
+            }
+            if (this.hasOpenSpawnerSetGui(player, value.getFaction())) {
+                player.sendMessage(this.getPlugin().getConfig().getString("Mensagens.ja-acessando-menu").replace("&", "§"));
+                return;
+            }
+            if (this.getPlugin().getSpawnerControllerManager().getConta(value.getFactionName()) == null) {
+                this.getPlugin().getManager().criarConta(value.getFactionName());
+                this.getPlugin().getSpawnerControllerManager().criarConta(new Manager_Mobs(value.getFactionName(), new HashMap<EntityType, Location>()));
+            }
+            player.openInventory(this.getInventory(value.getFaction().getTag()));
         }
     }
     
-    private void setSpawnSpawner(final Player player, final Faction faction, final EntityType entityType) {
-        boolean b = false;
-        final Manager_Mobs conta = this.getPlugin().getSpawnerControllerManager().getConta(faction.getName());
-        if (conta == null) {
-            player.closeInventory();
-        }
-        try {
-            conta.getMobs().put(entityType, player.getLocation());
-            String string = "";
-            for (final Map.Entry<EntityType, Location> entry : conta.getMobs().entrySet()) {
-                string = String.valueOf(String.valueOf(string)) + "{" + entry.getKey() + "=" + Utils.locationSerializer(entry.getValue()) + "}";
+    public boolean hasOpenSpawnerSetGui(final Player player, final Faction faction) {
+        for (final Player player2 : faction.getOnlinePlayers()) {
+            if (player2 != null && !player.equals(player2) && player2.getOpenInventory() != null && player2.getOpenInventory().getTitle().endsWith("Setar spawner spawn§f§f")) {
+                return true;
             }
-            this.getPlugin().getManager().setarMobs(faction.getName(), string);
-            b = true;
         }
-        catch (NullPointerException ex) {}
-        if (b) {
-            Utils.sendAction(player, this.getPlugin().getConfig().getString("Mensanges.action-bar").replace("&", "�"));
-            player.playSound(player.getLocation(), Sound.ORB_PICKUP, 1.0f, 1.0f);
-        }
-        player.closeInventory();
+        return false;
+    }
+    
+    protected ItemStack itemFromEntity(final EntityType entityType) {
+        final String translate = EntityUtils.translate(entityType);
+        return new ItemBuilder(EntityUtils.headItem(entityType)).removeAttributes().name(ChatColor.WHITE + translate).lore("§7Clique para setar o spawn", "§7dos spawners de §f" + translate + "§7.").build();
+    }
+    
+    public Inventory getInventory(final String s) {
+        final Inventory inventory = Bukkit.createInventory((InventoryHolder)null, 36, s + " - Setar spawner spawn§f");
+        inventory.setItem(10, this.itemFromEntity(EntityType.COW));
+        inventory.setItem(11, this.itemFromEntity(EntityType.SPIDER));
+        inventory.setItem(12, this.itemFromEntity(EntityType.ZOMBIE));
+        inventory.setItem(13, this.itemFromEntity(EntityType.SKELETON));
+        inventory.setItem(14, this.itemFromEntity(EntityType.BLAZE));
+        inventory.setItem(15, this.itemFromEntity(EntityType.PIG_ZOMBIE));
+        inventory.setItem(16, this.itemFromEntity(EntityType.IRON_GOLEM));
+        inventory.setItem(19, this.itemFromEntity(EntityType.MAGMA_CUBE));
+        return inventory;
     }
     
     public Main getPlugin() {
